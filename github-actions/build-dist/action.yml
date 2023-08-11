@@ -1,0 +1,134 @@
+name: Make distribution using Makefile.PL, Dist::Zilla, or Dist::Inkt
+inputs:
+  dist-perl-deps-configure:
+    description: |
+      List of Perl configure-time dependencies to install.
+    required: false
+    default: ''
+  dist-perl-deps-develop:
+    description: |
+      List of Perl develop-time dependencies to install.
+    required: false
+    default: ''
+outputs:
+  min-perl-version:
+    description: "Minimum Perl version from META.json"
+    value: ${{ steps.dist.outputs.min-perl-version }}
+runs:
+  using: "composite"
+  steps:
+    - uses: shogo82148/actions-setup-perl@v1
+    - name: Cache ~/perl5
+      uses: actions/cache@v3
+      with:
+        key: ${{ runner.os }}-dist-locallib
+        path: ~/perl5
+    - name: Perl version
+      shell: bash
+      run: perl -v
+    - name: Install cpanm
+      shell: bash
+      run: curl -L https://cpanmin.us | perl - --sudo App::cpanminus
+    - name: Install local::lib
+      shell: bash
+      run: |
+        cpanm --local-lib=~/perl5 local::lib && eval $(perl -I ~/perl5/lib/perl5/ -Mlocal::lib)
+        echo "PERL5OPT=${PERL5OPT:+${PERL5OPT} } -I$HOME/perl5/lib/perl5/ -Mlocal::lib" >> $GITHUB_ENV
+
+    - id: dist
+      name: Make distribution
+      shell: perl {0}
+      run: |
+        use Actions::Core;
+        $ENV{DIST_OUTPUT} = 'build-dir';
+
+        start_group('Install develop dependencies');
+        system(<<~'BASH') == 0 or die "Could not install develop deps";
+          set -ex
+          if [ -n "${{ inputs.dist-perl-deps-develop }}" ]; then
+            cpanm --dev -n ${{ inputs.dist-perl-deps-develop }} || ( cat ~/.cpanm/build.log && false )
+          fi
+        BASH
+        end_group();
+
+        if( -f "Makefile.PL" ) {
+
+          start_group('Install ExtUtils::MakeMaker');
+          system(<<~'BASH') == 0 or die "Could not install Makefile.PL author deps";
+            set -ex
+            cpanm -n ExtUtils::MakeMaker
+            if [ -n "${{ inputs.dist-perl-deps-configure }}" ]; then
+              cpanm --dev -n ${{ inputs.dist-perl-deps-configure }} || ( cat ~/.cpanm/build.log && false )
+            fi
+          BASH
+          end_group();
+
+          start_group('Make distribution');
+          system(<<~'BASH') == 0 or die "Could not make distribution directory";
+            set -ex
+            perl Makefile.PL && make distdir DISTVNAME=$DIST_OUTPUT
+          BASH
+          end_group();
+
+        } elsif( -f "dist.ini" ) {
+          my $contents = do {local (@ARGV,$/) = "dist.ini"; <>};
+
+          if( $contents =~ m/ ^ ;; \s* class \s*=\s* (['"]) (Dist::Inkt::[^'"]+) \1/xm ) {
+
+            $ENV{DIST_INKT_PROFILE} = $2;
+            start_group('Install Dist::Inkt');
+            system(<<~'BASH') == 0 or die "Could not install Dist::Inkt author deps";
+              set -ex
+              cpanm -n ExtUtils::MakeMaker~6.31 Dist::Inkt "$DIST_INKT_PROFILE"
+            BASH
+            end_group();
+
+            start_group('Make distribution');
+            system(<<~'BASH') == 0 or die "Could not make distribution directory";
+              set -ex
+              distinkt-dist --should_sign=0 --should_compress=0 --targetdir=$DIST_OUTPUT
+            BASH
+            end_group();
+          } else {
+            start_group('Install Dist::Zilla');
+            system(<<~'BASH') == 0 or die "Could not install Dist::Zilla author deps";
+              set -ex
+              cpanm -n Dist::Zilla
+              dzil authordeps --missing | cpanm -n
+            BASH
+            end_group();
+
+            start_group('Make distribution');
+            system(<<~'BASH') == 0 or die "Could not make distribution directory";
+              set -ex
+              dzil build --in $DIST_OUTPUT
+            BASH
+            end_group();
+          }
+        }
+
+        # Get minimum Perl to test.
+        use CPAN::Meta;
+        use version;
+        use List::Util qw(max);
+        die "No META.json" unless -f "$ENV{DIST_OUTPUT}/META.json";
+        my $meta = CPAN::Meta->load_file("$ENV{DIST_OUTPUT}/META.json");
+        my $v = version->parse(
+          $meta->effective_prereqs
+            ->requirements_for('runtime', 'requires')
+            ->requirements_for_module('perl')
+        );
+        # ExtUtils::MakeMaker  : "5.006001"
+        # CPAN::Meta           : "5.008001"
+        my $min_from_toolchain = version->parse("5.008001");
+        $v = max( $v, $min_from_toolchain );
+        my $dotted = $v->normal;
+
+        set_output('dist-output', $ENV{DIST_OUTPUT});
+        set_output('min-perl-version', $dotted);
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist
+        path: ./build-dir
