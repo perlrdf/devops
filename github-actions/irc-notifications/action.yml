@@ -1,0 +1,76 @@
+name: IRC notifications
+inputs:
+  repository_owner:
+    description: Organization/owner that notifications are triggered for.
+    required: true
+    default: 'perlrdf'
+  repository:
+    description: Repository that notifications are triggered for.
+    required: true
+    default: ''
+  irc-channel:
+    required: true
+    default: '#perlrdf'
+  irc-server:
+    required: true
+    default: 'irc.perl.org'
+  irc-port:
+    required: true
+    default: '6667'
+  irc-nickname:
+    required: true
+    default: 'perlrdf-commits'
+  irc-tls:
+    required: true
+    default: false
+  irc-notice:
+    required: true
+    default: true
+  irc-excess-flood:
+    required: false
+    default: 'throttle'
+  needs:
+    description: |
+      The GitHub Actions `need` context which should be passed
+      in using toJSON(). Only required for the
+      target-build-status target.
+    required: false
+  build-status-source:
+    description: |
+      Passed on to build-status-source input.
+    required: false
+    default: 'ci'
+  target-notifications:
+    description: |
+      Flag for target that notifies on various events.
+    required: true
+    default: false
+  target-build-status:
+    description: |
+      Flag for target that notifies after builds are complete
+      and reports the build status (success/failure).
+    required: true
+    default: false
+runs:
+  using: "composite"
+  steps:
+    # actions/checkout of the repo is used by both targets
+    # (target-notifications, target-build-status).
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - uses: zmughal-github-actions/events-to-irc@main
+      with:
+        repository_owner: ${{ inputs.repository_owner }}
+        repository: ${{ inputs.repository }}
+        irc-channel: ${{ inputs.irc-channel }}
+        irc-server: ${{ inputs.irc-server }}
+        irc-port: ${{ inputs.irc-port }}
+        irc-nickname: ${{ inputs.irc-nickname }}
+        irc-tls: ${{ inputs.irc-tls }}
+        irc-notice: ${{ inputs.irc-notice }}
+        irc-excess-flood: ${{ inputs.irc-excess-flood }}
+        needs: ${{ inputs.needs }}
+        build-status-source: ${{ inputs.build-status-source }}
+        target-notifications: ${{ inputs.target-notifications }}
+        target-build-status: ${{ inputs.target-build-status }}
