@@ -12,7 +12,7 @@ inputs:
     default: ''
 outputs:
   min-perl-version:
-    description: "Minimum Perl version from META.json"
+    description: "Minimum Perl version from META.*"
     value: ${{ steps.dist.outputs.min-perl-version }}
 runs:
   using: "composite"
@@ -110,9 +110,10 @@ runs:
         # Get minimum Perl to test.
         use CPAN::Meta;
         use version;
-        use List::Util qw(max);
-        die "No META.json" unless -f "$ENV{DIST_OUTPUT}/META.json";
-        my $meta = CPAN::Meta->load_file("$ENV{DIST_OUTPUT}/META.json");
+        use List::Util qw(max first);
+        my $metafile = first { -f } map "$ENV{DIST_OUTPUT}/$_", ('META.json', 'META.yml');
+        die "No META files in $ENV{DIST_OUTPUT}" unless $metafile;
+        my $meta = CPAN::Meta->load_file($metafile);
         my $v = version->parse(
           $meta->effective_prereqs
             ->requirements_for('runtime', 'requires')
