@@ -13,7 +13,7 @@ jobs:
     continue-on-error: true
     if: ${{ always() }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./github-actions/irc-notifications
         with:
           target-notifications: true
@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Run yamllint on actions
         run: |
             yamllint -d relaxed --format github github-actions
@@ -35,7 +35,7 @@ jobs:
     if: ${{ always() }}
     needs: [ 'ci' ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./github-actions/irc-notifications
         with:
           target-build-status: true

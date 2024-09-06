@@ -56,7 +56,7 @@ runs:
   steps:
     # actions/checkout of the repo is used by both targets
     # (target-notifications, target-build-status).
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - uses: zmughal-github-actions/events-to-irc@main

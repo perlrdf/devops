@@ -19,7 +19,7 @@ runs:
   steps:
     - uses: shogo82148/actions-setup-perl@v1
     - name: Cache ~/perl5
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: ${{ runner.os }}-dist-locallib
         path: ~/perl5
@@ -129,7 +129,7 @@ runs:
         set_output('min-perl-version', $dotted);
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dist
         path: ./build-dir
